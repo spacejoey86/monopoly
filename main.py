@@ -12,7 +12,14 @@ P = ParamSpec("P")
 
 bot = commands.Bot(command_prefix=">", intents=disnake.Intents.all()) #alec said its fine tm
 
-games: dict[int, Board] = {} #maps channel ID to a board (which is unique across guilds)
+class DiscordBoard(Board):
+    def __init__(self):
+        super(DiscordBoard, self).__init__()
+        self.current_players: set[int] = set()
+        self.waiting_players: set[int] = set()
+        self.leaving_players: set[int] = set()
+
+games: dict[int, DiscordBoard] = {} #maps channel ID to a board (which is unique across guilds) and sets of players
 
 
 def game_exists(f: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T|None]]:
@@ -52,20 +59,21 @@ async def create_handler(ctx: Context) -> None:
     if ctx.channel.id in games.keys():
         await ctx.reply("There is already a game in this channel")
     else:
-        games[ctx.channel.id] = Board()
+        games[ctx.channel.id] = DiscordBoard()
 
 @game_exists
 @bot.command(name="join")
 async def join_handler(ctx: Context) -> None:
-    if ctx.author.id in current_players and gameRunning:
+    board = games[ctx.channel.id]
+    if ctx.author.id in board.current_players and board.started:
         await ctx.reply("You are already playing the current game")
-    elif ctx.author.id in waiting_players or ctx.author.id in current_players:
+    elif ctx.author.id in board.waiting_players or ctx.author.id in board.current_players:
         await ctx.reply("You will already be included in the next game")
-    elif gameRunning:
-        waiting_players.add(ctx.author.id)
+    elif board.started:
+        board.waiting_players.add(ctx.author.id)
         await ctx.reply("You have been added to the queue for the next game")
     else:
-        current_players.add(ctx.author.id)
+        board.current_players.add(ctx.author.id)
         await ctx.reply("You have been added to the queue for the next game")
 
 b = Board()
