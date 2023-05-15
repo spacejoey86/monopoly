@@ -4,7 +4,7 @@ from APIKey import key
 
 import disnake
 from disnake.ext import commands
-from typing import Callable, TypeVar, ParamSpec, Awaitable, Any
+from typing import Callable, TypeVar, ParamSpec, Any
 
 Context = commands.Context[commands.Bot]
 T = TypeVar("T")
@@ -12,46 +12,26 @@ P = ParamSpec("P")
 
 bot = commands.Bot(command_prefix=">", intents=disnake.Intents.all()) #alec said its fine tm
 
-class DiscordBoard(Board):
-    def __init__(self):
-        super(DiscordBoard, self).__init__()
-        self.current_players: set[int] = set()
-        self.waiting_players: set[int] = set()
-        self.leaving_players: set[int] = set()
+# class DiscordBoard(Board):
+#     def __init__(self):
+#         super(DiscordBoard, self).__init__()
+#         self.current_players: set[int] = set()
+#         self.waiting_players: set[int] = set()
+#         self.leaving_players: set[int] = set()
 
-games: dict[int, DiscordBoard] = {} #maps channel ID to a board (which is unique across guilds) and sets of players
+class DiscordPlayer(Player):
+    def __init__(self, *args: tuple[Any], **kwargs: tuple[Any]]):
+        super(Player, self).__init__(*args, **kwargs)
+        self.discord_id = 
+
+games: dict[int, Board] = {} #maps channel ID to a board (which is unique across guilds) and sets of players
 
 
-def game_exists(f: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T|None]]:
-    async def wrapper(*args: Any, **kwargs: Any) -> T|None:
-        if len(args) == 0:
-            raise TypeError("in_play only valid for bot commands")
-        
-        ctx = args[0]
-        if not isinstance(ctx, commands.Context):
-            raise TypeError("in_play only valid for bot commands")
-        
-        if ctx.channel.id not in games.keys():
-            await ctx.reply("There isn't a game in this channel")
-            return None
-        return await f(*args, **kwargs)
-    return wrapper
-
-# def game_exists(func: Callable[P, Awaitable[None]]) -> Coroutine[P, Awaitable[None]]:
-#     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> None:
-#         if len(args) == 0:
-#             raise TypeError("in_play only valid for bot commands")
-        
-#         ctx = args[0]
-#         if not isinstance(ctx, commands.Context):
-#             raise TypeError("in_play only valid for bot commands")
-        
-#         if ctx.channel.id not in games.keys():
-#             await ctx.reply("There isn't a game in this channel")
-#             return
-#         return await func(*args, **kwargs)
-    
-#     return wrapper
+async def game_exists(ctx: Context) -> bool:
+    if ctx.channel.id not in games.keys():
+        await ctx.reply("There isn't a game in this channel")
+        return False
+    return True
 
 
 @bot.command(name="create")
@@ -59,10 +39,12 @@ async def create_handler(ctx: Context) -> None:
     if ctx.channel.id in games.keys():
         await ctx.reply("There is already a game in this channel")
     else:
-        games[ctx.channel.id] = DiscordBoard()
+        games[ctx.channel.id] = Board()
+        await ctx.reply(f"A new monopoly game has been started in this channel")
 
-@game_exists
+
 @bot.command(name="join")
+@commands.check(game_exists)
 async def join_handler(ctx: Context) -> None:
     board = games[ctx.channel.id]
     if ctx.author.id in board.current_players and board.started:
